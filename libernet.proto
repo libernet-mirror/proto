@@ -1,0 +1,434 @@
+syntax = "proto2";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+package libernet;
+
+// # General Notes
+//
+// ## Overview
+//
+// This file defines the protocol that must be implemented by a node of the Libernet network. The
+// network is fully decentralized and the nodes communicate with each other using this protocol.
+// Libernet clients such as the Libernet Browser also use this protocol when connecting to a node
+// and sending requests.
+//
+// The current version of the protocol uses the BLS12-381 elliptic curve and the Poseidon-128 hash.
+//
+// Libernet accounts are managed via an elliptic curve keypair that's used by the owner to sign
+// transactions and other kinds of messages. The private key is a BLS scalar but since it must
+// remain secret we never serialize it in this protocol. The public key is a BLS point so we
+// serialize it in compressed form on a 48-byte `bytes`. More often, Libernet account are identified
+// by their address rather than their public key. The address of an account is simply the SHA3-256
+// hash of its public key, which we serialize as a 32-byte `bytes`.
+//
+// All network connections used with this protocol must be authenticated on both sides with mTLS
+// using special self-signed certificates. TODO: add more info.
+//
+// ## Signatures
+//
+// Some messages are cryptographically signed by the emitting node. These messages are generally
+// structured as follows:
+//
+//   message SignedMessage {
+//     message Payload {
+//       // ...
+//     }
+//     optional .google.protobuf.Any payload = 1;
+//     optional Signature signature = 2;
+//   }
+//
+// See `NodeIdentity` for an example.
+//
+// For this kind of messages, the `type_url` of the `Any` must be set to
+// `type.libernet.com/fully.qualified.path.of.ThePayload` and the value must be the wire encoding of
+// a `Payload` message. For example, the type_url of a `NodeIdentity` payload would be
+// `type.libernet.com/libernet.NodeIdentity.Payload`.
+//
+// The attached signature refers to the bytes of the wire encoding of the `payload` message, which
+// wraps the actual message. Using an `Any` achieves two important goals:
+//
+//   * it provides a type_url that acts as a domain separator, preventing misinterpretation attacks;
+//   * and it clarifies that the signature refers to the bytes of the payload as encoded inside the
+//     `Any` (the `Any` stores the encoded message as a raw byte array).
+//
+// The latter is important because protobuf encoding is not canonical: field ordering is not
+// deterministic, it might have duplicated fields/tags, etc. But any actor that wishes to verify the
+// signature needs to know exactly the byte array to verify.
+//
+// Note that the need for a wrapping `Any` reintroduces the encoding problem: `Any` has two fields
+// (the type_url and the byte array) and it's unspecified which one is encoded first or whether a
+// field is repeated more than once (the decoding is still unambiguous thanks to protobuf's Last One
+// Wins rule). To address that we require that the whole `Any` is encoded canonically as follows:
+//
+//   * both fields must be present (as if they were required),
+//   * field `type_url` (tagged 1) must be the first,
+//   * field `value` (tagged 2) must be the second,
+//   * there must not be repeated fields.
+//
+// Implementors don't need to modify their gRPC & protobuf frameworks to enforce this, they just
+// need to know that, when signing or verifying, the signed/verified message must be encoded this
+// way. Implementing canonical encoding for a known, two-field protobuf is quite easy and much
+// better than implementing it generically for any protobuf.
+//
+// Note that since canonical encoding is only implemented for the wrapping `Any`, the wrapped
+// message cannot be re-encoded without changing the signature.
+
+message ProtocolVersion {
+  optional uint32 major = 1;
+  optional uint32 minor = 2;
+  optional uint32 build = 3;
+}
+
+// A BLS12-381 scalar.
+message Scalar {
+  // The bytes of the scalar in little endian order. This field MUST be 32 bytes long.
+  optional bytes value = 4;
+}
+
+// A BLS12-381 G1 point.
+message PointG1 {
+  // The compressed bytes of the point. This field MUST be 48 bytes long.
+  optional bytes compressed_bytes = 1;
+}
+
+// A BLS12-381 G2 point.
+message PointG2 {
+  // The compressed bytes of the point. This field MUST be 48 bytes long.
+  optional bytes compressed_bytes = 2;
+}
+
+// BLS signature used for various purposes.
+//
+// This protobuf doesn't contain the signed bytes themselves, those have to be transmitted
+// separately.
+//
+// WARNING: signed messages should always contain nonces and/or timestamps, otherwise they're
+// vulnerable to replay attacks.
+message Signature {
+  // REQUIRED. The account address of the signer.
+  optional Scalar signer = 1;
+
+  // REQUIRED. The public key of the signer. Note that the Poseidon hash of this point must equal
+  // `signer` for the signature to be valid.
+  optional PointG1 public_key = 3;
+
+  // REQUIRED. The BLS signature output.
+  optional PointG2 signature = 4;
+}
+
+// The descriptor of a block.
+//
+// This descriptor summarizes everything related to the block. `block_hash` is the hash of all
+// fields and uniquely identifies the block.
+message BlockDescriptor {
+  optional Scalar block_hash = 1;
+  optional uint64 chain_id = 2;
+  optional fixed64 block_number = 3;
+  optional Scalar previous_block_hash = 4;
+  optional google.protobuf.Timestamp timestamp = 5;
+  optional Scalar network_topology_root_hash = 6;
+  optional Scalar last_transaction_hash = 7;
+  optional Scalar accounts_root_hash = 8;
+  optional Scalar program_storage_root_hash = 9;
+}
+
+// Describes the status of an account.
+//
+// This can be an externally owned account or a smartcontract alike
+message AccountInfo {
+  // The latest transaction nonce used by the account. Zero means the account has never submitted
+  // any transactions. Future transactions are rejected if their nonce is less than or equal to this
+  // value.
+  optional uint64 last_nonce = 1 [default = 0];
+
+  // REQUIRED. The DOT balance (in dan) associated to the account.
+  optional Scalar balance = 2;
+
+  // The staking balance (in dan) associated to the account. This field is filled in only for
+  // accounts associated to nodes of the network; it's left empty for regular, non-staking accounts
+  // or smartcontracts.
+  optional Scalar staking_balance = 3;
+}
+
+// A signed transaction.
+//
+// NOTE 1: the sender is the signer of the transaction, i.e. `signature.signer`.
+//
+// NOTE 2: this message contains no transaction hash and a transaction hash cannot be calculated
+// from it, because in order to be hashed a transaction first needs to be bound to a specific
+// blockchain state. This message only contains a set of intended changes signed by the author,
+// without specifying what state they apply to. See the `BoundTransaction` message below for a
+// hashable version.
+message Transaction {
+  // Payload content for DOT transfer transactions.
+  message SendCoins {
+    optional Scalar recipient = 1;
+    optional Scalar amount = 2;
+  }
+
+  // Payload content for smartcontract deployment transactions.
+  message CreateProgram {
+    optional bytes bytecode = 1;
+  }
+
+  message Payload {
+    optional uint64 chain_id = 1;
+    optional uint64 nonce = 2;
+
+    oneof transaction {
+      SendCoins send_coins = 3;
+      CreateProgram create_program = 4;
+    }
+  }
+
+  // The type URL must be `type.libernet.com/libernet.Transaction.Payload`.
+  optional google.protobuf.Any payload = 1;
+
+  // REQUIRED. All transactions are always signed by the sender and are always communicated along
+  // with their signature.
+  optional Signature signature = 2;
+}
+
+// A signed transaction bound to a specific state (see `parent_transaction_hash` for details).
+message BoundTransaction {
+  // The hash of the parent transaction, representing the blockchain state this transaction was
+  // applied to.
+  optional Scalar parent_transaction_hash = 1;
+
+  // Signed transaction data.
+  optional Transaction transaction = 2;
+}
+
+// A Merkle proof for a piece of storage.
+//
+// TODO: explain how to verify it and how to extract the requested value.
+message MerkleProof {
+  // REQUIRED. The descriptor of the block whose storage is being queried.
+  optional BlockDescriptor block_descriptor = 1;
+
+  // A node of the lookup path.
+  message Node {
+    repeated Scalar child_hashes = 1;
+  }
+
+  // The full key of the queried storage location.
+  optional Scalar key = 2;
+
+  // The queried value. The exact type depends on the context where this proof is used. For example,
+  // when querying account balances via the `GetAccountBalance` RPC the value is a DOT balance
+  // encoded as a `Scalar`.
+  optional google.protobuf.Any value = 3;
+
+  // The lookup path up to the root of the Merkle tree. The first node is the looked up leaf, while
+  // the last one is the root.
+  repeated Node path = 4;
+}
+
+// Contains the geographical location of a node.
+message GeographicalLocation {
+  // The latitude expressed in minutes, ranging from -5400 (equal to -90 degrees) to 5400 (equal to
+  // +90 degrees).
+  optional int32 latitude = 1;
+
+  // The longitude expressed in minutes, ranging from 0 (equal to 0 degrees) to 10800 (equal to 180
+  // degrees).
+  optional uint32 longitude = 2;
+}
+
+// Describes a node of the network.
+message NodeIdentity {
+  message Payload {
+    // Protocol version implemented by the node, as indicated by the tags of the Git repository
+    // containing this file.
+    optional ProtocolVersion protocol_version = 1;
+
+    // The globally unique ID of the network this node participates in.
+    optional uint64 chain_id = 2;
+
+    // Wallet address of the node. This is the address used to stake DOT and earn rewards for
+    // participating in the network.
+    optional Scalar account_address = 3;
+
+    // Self-declared geographical location of the node.
+    //
+    // NOTE: it's in the node's best interest to declare an accurate location, otherwise it won't be
+    // able to achieve a competitive serving SLO.
+    optional GeographicalLocation location = 4;
+
+    // The IP address other nodes can use to connect to this node. It can be an IPv4 address, an
+    // IPv6 address, or a DNS name, but it must be in a canonical form that can be used to uniquely
+    // identify the node. The protocol treats addresses opaquely so they are entirely self-declared,
+    // but the address format must remaing consistent throughout participation. For example, a
+    // dual-stack node cannot provide an IPv4 address and then switch to IPv6, or provide an IPv6
+    // address in one format and then switch to a different format, etc. In order to change address,
+    // a node must leave and re-join the network.
+    optional string network_address = 5;
+
+    // The TCP port where the node exposes this gRPC protocol.
+    optional uint32 grpc_port = 6;
+
+    // The TCP port where the node exposes this protocol as gRPC-web.
+    optional uint32 http_port = 7;
+
+    // The time of serialization of this message, used to avoid signature replay attacks.
+    optional google.protobuf.Timestamp timestamp = 8;
+  }
+
+  // The encoded payload. The type URL must be `type.libernet.com/libernet.NodeIdentity.Payload`.
+  //
+  // NOTE: in the Dotakon protocol all connections are authenticated, so the account_address
+  // provided in the identity MUST equal the authenticated address.
+  optional google.protobuf.Any payload = 1;
+
+  // Required as proof to propose slashing if a node tries to attack the network by e.g. repeatedly
+  // changing geographical location causing many topology refactorings. Note that at present
+  // changing geographical location is not allowed at all. If a node wants to physically move, it
+  // needs to leave and re-join the network.
+  optional Signature signature = 2;
+}
+
+// Requests the identity of a node.
+message GetIdentityRequest {}
+
+// Requests information about a block.
+message GetBlockRequest {
+  // The hash of the block to retrieve. If unspecified, this RPC will return the latest block.
+  optional Scalar block_hash = 1;
+}
+
+// Returns information about a block.
+message GetBlockResponse {
+  // The encoded payload. The type URL must be `type.libernet.com/libernet.BlockDescriptor`.
+  optional google.protobuf.Any payload = 1;
+
+  // REQUIRED. The message must be signed so that the server can be slashed if it returns incorrect
+  // data. Unsigned messages must not be accepted.
+  optional Signature signature = 2;
+}
+
+// Describes the topology of the network.
+message NetworkTopology {
+  // Describes a "cluster", sometimes also known as a "clique", a set of nodes that are all
+  // connected to each other.
+  message Cluster {
+    repeated NodeIdentity node = 1;
+  }
+
+  // The topology is a fully connected graph of clusters, so listing all the clusters is sufficient
+  // to determine the whole topology.
+  repeated Cluster cluster = 1;
+}
+
+// Requests the current network topology.
+message GetTopologyRequest {}
+
+// Requests the information of an account at the specified block. The specified account can be a
+// smartcontract or EOA alike.
+message GetAccountRequest {
+  // An optional block hash (defaults to the latest block if unspecified).
+  optional Scalar block_hash = 1;
+
+  // REQUIRED: the address to query.
+  optional Scalar account_address = 2;
+}
+
+// Returns the Merkle-proven information of an account at the specified block.
+message GetAccountResponse {
+  // The encoded payload. The type URL must be `type.libernet.com/libernet.MerkleProof`.
+  //
+  // The value inside the proof must be an `AccountInfo` message. The key must be the account
+  // address.
+  optional google.protobuf.Any payload = 1;
+
+  // REQUIRED. The message must be signed so that the server can be slashed if it returns incorrect
+  // data. Unsigned messages must not be accepted.
+  optional Signature signature = 2;
+}
+
+// Looks up a transaction by hash.
+message GetTransactionRequest {
+  // REQUIRED. The hash of the transaction to look up.
+  optional Scalar transaction_hash = 1;
+}
+
+// Returns the Merkle-proven transaction data.
+message GetTransactionResponse {
+  // The encoded payload. The type URL must be
+  // `type.dotakon.org/dotakon.BoundTransaction`.
+  optional google.protobuf.Any payload = 1;
+
+  // REQUIRED. The message must be signed so that the server can be slashed if it returns incorrect
+  // data. Unsigned messages must not be accepted.
+  optional Signature signature = 2;
+}
+
+message BroadcastTransactionRequest {
+  // REQUIRED. The transaction to broadcast.
+  optional Transaction transaction = 1;
+
+  // The TTL for the message.
+  optional uint32 ttl = 2 [default = 0];
+}
+
+message BroadcastTransactionResponse {}
+
+message BroadcastBlockRequest {
+  // Proof that the sender was actually a leader for the slot.
+  message LeaderElectionProof {
+    // REQUIRED. The network ID. This prevents the proof from being replayed across networks.
+    optional uint64 chain_id = 1;
+
+    // REQUIRED. The slot number. This prevents the proof from being replayed across blocks.
+    optional uint64 slot_number = 2;
+
+    // REQUIRED. The previous block hash, which we use a per-slot randomness when seeding the VRF.
+    optional Scalar previous_block_hash = 3;
+
+    // REQUIRED. A BLS signature used as a VRF. The signed message includes the other fields of this
+    // message (chain ID, slot number, and previous block hash), and the resulting output is used to
+    // decide the leader for the slot.
+    optional Signature verifiable_randomness = 4;
+  }
+
+  // REQUIRED.
+  optional LeaderElectionProof leader_election_proof = 1;
+
+  // The descriptor of the new block. If both this field and `block_diff` are missing it means the
+  // node didn't produce any block during the slot.
+  optional BlockDescriptor block_descriptor = 2;
+
+  // Ordered list of transactions in the block. Receivers of this message must replay the
+  // transactions on top of the parent block and verify that the resulting hashes describing the
+  // final state match the ones in the `block_descriptor` field.
+  repeated Transaction transaction = 3;
+
+  // The TTL for the message.
+  optional uint32 ttl = 4 [default = 0];
+}
+
+message BroadcastBlockResponse {}
+
+service NodeServiceV1 {
+  // Returns the identity of the node.
+  rpc GetIdentity(GetIdentityRequest) returns (NodeIdentity);
+
+  // Returns information about a specified block, or about the latest block.
+  rpc GetBlock(GetBlockRequest) returns (GetBlockResponse);
+
+  // Returns the current topology of the network.
+  rpc GetTopology(GetTopologyRequest) returns (NetworkTopology);
+
+  // Returns all the information of an account at a given block number (or at the latest block).
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+
+  // Looks up a transaction by hash.
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+
+  // Request to broadcast a new transaction.
+  rpc BroadcastTransaction(BroadcastTransactionRequest) returns (BroadcastTransactionResponse);
+
+  // Used by the leader(s) of a slot to publish a new block.
+  rpc BroadcastNewBlock(BroadcastBlockRequest) returns (BroadcastBlockResponse);
+}
