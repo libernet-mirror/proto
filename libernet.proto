@@ -95,7 +95,7 @@ message PointG1 {
 
 // A BLS12-381 G2 point.
 message PointG2 {
-  // The compressed bytes of the point. This field MUST be 48 bytes long.
+  // The compressed bytes of the point. This field MUST be 96 bytes long.
   optional bytes compressed_bytes = 2;
 }
 
