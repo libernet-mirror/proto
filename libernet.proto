@@ -143,7 +143,7 @@ message AccountInfo {
   // value.
   optional uint64 last_nonce = 1 [default = 0];
 
-  // REQUIRED. The DOT balance (in dan) associated to the account.
+  // REQUIRED. The LIB balance (in dan) associated to the account.
   optional Scalar balance = 2;
 
   // The staking balance (in dan) associated to the account. This field is filled in only for
@@ -162,7 +162,7 @@ message AccountInfo {
 // without specifying what state they apply to. See the `BoundTransaction` message below for a
 // hashable version.
 message Transaction {
-  // Payload content for DOT transfer transactions.
+  // Payload content for LIB transfer transactions.
   message SendCoins {
     optional Scalar recipient = 1;
     optional Scalar amount = 2;
@@ -217,7 +217,7 @@ message MerkleProof {
   optional Scalar key = 2;
 
   // The queried value. The exact type depends on the context where this proof is used. For example,
-  // when querying account balances via the `GetAccountBalance` RPC the value is a DOT balance
+  // when querying account balances via the `GetAccountBalance` RPC the value is a LIB balance
   // encoded as a `Scalar`.
   optional google.protobuf.Any value = 3;
 
@@ -247,7 +247,7 @@ message NodeIdentity {
     // The globally unique ID of the network this node participates in.
     optional uint64 chain_id = 2;
 
-    // Wallet address of the node. This is the address used to stake DOT and earn rewards for
+    // Wallet address of the node. This is the address used to stake LIB and earn rewards for
     // participating in the network.
     optional Scalar account_address = 3;
 
