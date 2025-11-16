@@ -321,6 +321,21 @@ message GetBlockResponse {
   optional Signature signature = 2;
 }
 
+// Requests to stream block headers as blocks are validated.
+message BlockSubscriptionRequest {}
+
+// Streamed in response to a `BlockSubscriptionRequest`.
+message BlockSubscriptionResponse {
+  // One or more descriptor for new blocks accepted into the chain known by this node.
+  //
+  // Normally a node sends exactly one descriptor per slot back to the client, but if a better fork
+  // shows up then the node will discard all blocks up to the youngest common ancestor and will send
+  // a `BlockSubscriptionResponse` with all the headers of the fork blocks up to and excluding the
+  // common ancestor. The block hash of the ancestor will show up as the `previous_block_hash` of
+  // the first element of this array.
+  repeated BlockDescriptor block_descriptor = 1;
+}
+
 // Describes the topology of the network.
 message NetworkTopology {
   // Describes a "cluster", sometimes also known as a "clique", a set of nodes that are all
@@ -429,6 +444,12 @@ service NodeServiceV1 {
 
   // Returns information about a specified block, or about the latest block.
   rpc GetBlock(GetBlockRequest) returns (GetBlockResponse);
+
+  // Streams blocks headers as blocks are validated.
+  //
+  // Note that the returned blocks may not be final. See the doc snippets for
+  // `BlockSubscriptionResponse` for details about fork handling.
+  rpc SubscribeToBlocks(BlockSubscriptionRequest) returns (stream BlockSubscriptionResponse);
 
   // Returns the current topology of the network.
   rpc GetTopology(GetTopologyRequest) returns (NetworkTopology);
