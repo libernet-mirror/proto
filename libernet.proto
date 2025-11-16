@@ -9,19 +9,32 @@ package libernet;
 //
 // ## Overview
 //
-// This file defines the protocol that must be implemented by a node of the Libernet network. The
-// network is fully decentralized and the nodes communicate with each other using this protocol.
-// Libernet clients such as the Libernet Browser also use this protocol when connecting to a node
-// and sending requests.
+// This file defines the protocol that must be implemented by all nodes of the Libernet network. The
+// network is fully decentralized and the nodes communicate with each other using this gRPC protocol
+// over SSL / TLS. Libernet clients such as the Libernet Browser also use this protocol when
+// connecting to a node and sending requests.
 //
-// The current version of the protocol uses the BLS12-381 elliptic curve and the Poseidon-128 hash.
+// ## Cryptographic Primitives
+//
+// Libernet's protocol uses the BLS12-381 elliptic curve and for the most part runs on BLS12-381's
+// finite fields.
+//
+// The protocol uses Poseidon-128 for hashing everywhere a scalar output is needed, but in some
+// cases it uses SHA3.
+//
+// ## Accounts
 //
 // Libernet accounts are managed via an elliptic curve keypair that's used by the owner to sign
 // transactions and other kinds of messages. The private key is a BLS scalar but since it must
 // remain secret we never serialize it in this protocol. The public key is a BLS point so we
 // serialize it in compressed form on a 48-byte `bytes`. More often, Libernet account are identified
-// by their address rather than their public key. The address of an account is simply the SHA3-256
-// hash of its public key, which we serialize as a 32-byte `bytes`.
+// by their address rather than their public key. The address of an account is calculate as follows:
+//
+//  * convert the public BLS key into its standard compressed form,
+//  * hash the 48 bytes of the compressed key with SHA3-512,
+//  * convert the SHA3-512 hash to a BLS scalar via modular reduction.
+//
+// ## Authentication
 //
 // All network connections used with this protocol must be authenticated on both sides with mTLS
 // using special self-signed certificates. TODO: add more info.
