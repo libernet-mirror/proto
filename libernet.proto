@@ -232,8 +232,7 @@ message MerkleProof {
   optional Scalar key = 2;
 
   // The queried value. The exact type depends on the context where this proof is used. For example,
-  // when querying account balances via the `GetAccountBalance` RPC the value is a LIB balance
-  // encoded as a `Scalar`.
+  // when querying account statuses via the `GetAccount` RPC the value is an `AccountInfo` message.
   optional google.protobuf.Any value = 3;
 
   // The lookup path up to the root of the Merkle tree. The first node is the looked up leaf, while
