@@ -340,30 +340,6 @@ message BlockSubscriptionResponse {
   repeated BlockDescriptor block_descriptor = 1;
 }
 
-// Requests to stream an account's data (with Merkle proofs) as it changes.
-message AccountSubscriptionRequest {
-  // The address of the account whose changes must be streamed.
-  optional Scalar account_address = 1;
-}
-
-// Streamed in response to an `AccountSubscriptionRequest`.
-message AccountSubscriptionResponse {
-  // One or more Merkle proofs describing the state of the account at several subsequent blocks.
-  //
-  // The value inside each proof must be an `AccountInfo` message. The key must be the account
-  // address.
-  //
-  // Elements are sorted in ascending chronological order (the first element is related to the
-  // oldest block, the last to the youngest).
-  //
-  // Normally a node sends exactly one proof per slot back to the client, but if a better fork shows
-  // up then the node will discard all blocks up to the youngest common ancestor and will send an
-  // `AccountSubscriptionResponse` with all the proofs relative to the fork blocks up to and
-  // excluding the common ancestor. The block hash of the ancestor will show up as the
-  // `block_descriptor.previous_block_hash` field of the first element of this array.
-  repeated MerkleProof account_proof = 1;
-}
-
 // Describes the topology of the network.
 message NetworkTopology {
   // Describes a "cluster", sometimes also known as a "clique", a set of nodes that are all
@@ -401,6 +377,30 @@ message GetAccountResponse {
   // REQUIRED. The message must be signed so that the server can be slashed if it returns incorrect
   // data. Unsigned messages must not be accepted.
   optional Signature signature = 2;
+}
+
+// Requests to stream an account's data (with Merkle proofs) as it changes.
+message AccountSubscriptionRequest {
+  // The address of the account whose changes must be streamed.
+  optional Scalar account_address = 1;
+}
+
+// Streamed in response to an `AccountSubscriptionRequest`.
+message AccountSubscriptionResponse {
+  // One or more Merkle proofs describing the state of the account at several subsequent blocks.
+  //
+  // The value inside each proof must be an `AccountInfo` message. The key must be the account
+  // address.
+  //
+  // Elements are sorted in ascending chronological order (the first element is related to the
+  // oldest block, the last to the youngest).
+  //
+  // Normally a node sends exactly one proof per slot back to the client, but if a better fork shows
+  // up then the node will discard all blocks up to the youngest common ancestor and will send an
+  // `AccountSubscriptionResponse` with all the proofs relative to the fork blocks up to and
+  // excluding the common ancestor. The block hash of the ancestor will show up as the
+  // `block_descriptor.previous_block_hash` field of the first element of this array.
+  repeated MerkleProof account_proof = 1;
 }
 
 // Looks up a transaction by hash.
@@ -479,17 +479,17 @@ service NodeServiceV1 {
   // `BlockSubscriptionResponse` for details about fork handling.
   rpc SubscribeToBlocks(BlockSubscriptionRequest) returns (stream BlockSubscriptionResponse);
 
-  // Streams the Merkle proofs of an account as the account changes.
-  //
-  // Note that the proofs may be relative to blocks that are not final. See the doc snippets for
-  // `AccountSubscriptionResponse` for details about fork handling.
-  rpc SubscribeToAccount(AccountSubscriptionRequest) returns (stream AccountSubscriptionResponse);
-
   // Returns the current topology of the network.
   rpc GetTopology(GetTopologyRequest) returns (NetworkTopology);
 
   // Returns all the information of an account at a given block number (or at the latest block).
   rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+
+  // Streams the Merkle proofs of an account as the account changes.
+  //
+  // Note that the proofs may be relative to blocks that are not final. See the doc snippets for
+  // `AccountSubscriptionResponse` for details about fork handling.
+  rpc SubscribeToAccount(AccountSubscriptionRequest) returns (stream AccountSubscriptionResponse);
 
   // Looks up a transaction by hash.
   rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
