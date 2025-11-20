@@ -314,12 +314,8 @@ message GetBlockRequest {
 
 // Returns information about a block.
 message GetBlockResponse {
-  // The encoded payload. The type URL must be `type.libernet.org/libernet.BlockDescriptor`.
-  optional google.protobuf.Any payload = 1;
-
-  // REQUIRED. The message must be signed so that the server can be slashed if it returns incorrect
-  // data. Unsigned messages must not be accepted.
-  optional Signature signature = 2;
+  // REQUIRED.
+  optional BlockDescriptor block_descriptor = 1;
 }
 
 // Requests to stream block headers as blocks are validated.
