@@ -364,15 +364,8 @@ message GetAccountRequest {
 
 // Returns the Merkle-proven information of an account at the specified block.
 message GetAccountResponse {
-  // The encoded payload. The type URL must be `type.libernet.org/libernet.MerkleProof`.
-  //
-  // The value inside the proof must be an `AccountInfo` message. The key must be the account
-  // address.
-  optional google.protobuf.Any payload = 1;
-
-  // REQUIRED. The message must be signed so that the server can be slashed if it returns incorrect
-  // data. Unsigned messages must not be accepted.
-  optional Signature signature = 2;
+  // The value inside the proof must be an `AccountInfo` message. The key is the account address.
+  optional MerkleProof account_proof = 1;
 }
 
 // Requests to stream an account's data (with Merkle proofs) as it changes.
