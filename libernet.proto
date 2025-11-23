@@ -372,6 +372,11 @@ message GetAccountResponse {
 message AccountSubscriptionRequest {
   // The address of the account whose changes must be streamed.
   optional Scalar account_address = 1;
+
+  // When enabled, the node will stream a new proof for the specified account at every new block
+  // even if nothing changed in the account. The default is disabled, meaning a new proof will be
+  // sent back only when something changed.
+  optional bool every_block = 2 [default = false];
 }
 
 // Streamed in response to an `AccountSubscriptionRequest`.
