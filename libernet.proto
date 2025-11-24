@@ -183,7 +183,9 @@ message Transaction {
   // network. They can be signed by anyone, but are typically signed by the same account the block
   // builder node is using to participate in the network.
   //
-  // If reward transactions are missing for one or more nodes, the block is considered invalid.
+  // This transaction type cannot be broadcast via `BroadcastTransactionRequest`. Additionally, if
+  // one or more nodes have either zero or more than one attributed block rewards, the block is
+  // invalid.
   message BlockReward {
     optional Scalar recipient = 1;
     optional Scalar amount = 2;
@@ -421,6 +423,9 @@ message GetTransactionResponse {
   optional BoundTransaction transaction = 1;
 }
 
+// Broadcasts a signed transaction.
+//
+// `BlockReward` transactions are not allowed here.
 message BroadcastTransactionRequest {
   // REQUIRED. The transaction to broadcast.
   optional Transaction transaction = 1;
