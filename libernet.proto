@@ -177,6 +177,18 @@ message AccountInfo {
 // without specifying what state they apply to. See the `BoundTransaction` message below for a
 // hashable version.
 message Transaction {
+  // Payload content for block reward transactions.
+  //
+  // Every block MUST have exactly one reward transaction for every node participating in the
+  // network. They can be signed by anyone, but are typically signed by the same account the block
+  // builder node is using to participate in the network.
+  //
+  // If reward transactions are missing for one or more nodes, the block is considered invalid.
+  message BlockReward {
+    optional Scalar recipient = 1;
+    optional Scalar amount = 2;
+  }
+
   // Payload content for LIB transfer transactions.
   message SendCoins {
     optional Scalar recipient = 1;
@@ -193,8 +205,9 @@ message Transaction {
     optional uint64 nonce = 2;
 
     oneof transaction {
-      SendCoins send_coins = 3;
-      CreateProgram create_program = 4;
+      BlockReward block_reward = 3;
+      SendCoins send_coins = 4;
+      CreateProgram create_program = 5;
     }
   }
 
