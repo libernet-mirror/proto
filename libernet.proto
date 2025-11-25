@@ -325,12 +325,22 @@ message GetIdentityRequest {}
 message GetBlockRequest {
   // The hash of the block to retrieve. If unspecified, this RPC will return the latest block.
   optional Scalar block_hash = 1;
+
+  // If true, the list of hashes of all transactions of this block is included in the response.
+  optional bool get_all_transaction_hashes = 2 [default = false];
 }
 
 // Returns information about a block.
 message GetBlockResponse {
   // REQUIRED.
   optional BlockDescriptor block_descriptor = 1;
+
+  // Provided only if `GetBlockRequest.get_all_transaction_hashes` was set to true, otherwise it's
+  // empty.
+  //
+  // The list is already sorted chronologically: the first hash is that of the first transaction in
+  // the block. Note that the last hash must match `block_descriptor.last_transaction_hash`.
+  repeated Scalar transaction_hash = 2;
 }
 
 // Requests to stream block headers as blocks are validated.
