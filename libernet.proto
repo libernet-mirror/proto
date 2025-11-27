@@ -1,10 +1,9 @@
-syntax = "proto2";
-
-import "google/protobuf/any.proto";
-import "google/protobuf/timestamp.proto";
-
-package libernet;
-
+// The Libernet protocol.
+//
+// Copyright 2025 The Libernet Team
+// SPDX-License-Identifier: Apache-2.0
+//
+//
 // # General Notes
 //
 // ## Overview
@@ -87,6 +86,13 @@ package libernet;
 //
 // Note that since canonical encoding is only implemented for the wrapping `Any`, the wrapped
 // message cannot be re-encoded without changing the signature.
+
+syntax = "proto2";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+package libernet;
 
 message ProtocolVersion {
   optional uint32 major = 1;
