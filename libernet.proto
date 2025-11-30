@@ -429,14 +429,14 @@ message AccountSubscriptionResponse {
 }
 
 // Looks up a transaction by hash.
-message GetTransactionRequest {
-  // REQUIRED. The hash of the transaction to look up.
-  optional Scalar transaction_hash = 1;
+message GetTransactionsRequest {
+  // The hashes of the transactions to look up.
+  repeated Scalar transaction_hash = 1;
 }
 
-// Returns the transaction data.
-message GetTransactionResponse {
-  optional BoundTransaction transaction = 1;
+// Returns the queried transactions.
+message GetTransactionsResponse {
+  repeated BoundTransaction transaction = 1;
 }
 
 // Queries a set of transactions based on certain criteria.
@@ -556,8 +556,8 @@ service NodeServiceV1 {
   // `AccountSubscriptionResponse` for details about fork handling.
   rpc SubscribeToAccount(AccountSubscriptionRequest) returns (stream AccountSubscriptionResponse);
 
-  // Looks up a transaction by hash.
-  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+  // Looks up one or more transactions by hash.
+  rpc GetTransactions(GetTransactionsRequest) returns (GetTransactionsResponse);
 
   // Queries a set of transactions based on certain criteria.
   rpc QueryTransactions(QueryTransactionsRequest) returns (QueryTransactionsResponse);
