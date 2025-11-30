@@ -439,6 +439,49 @@ message GetTransactionResponse {
   optional BoundTransaction transaction = 1;
 }
 
+// Queries a set of transactions based on certain criteria.
+message QueryTransactionsRequest {
+  // Optionally constrains the address of the transaction signer.
+  optional Scalar from_filter = 1;
+
+  // Optionally constrains the recipient of `SendCoins` and `BlockReward` transactions.
+  //
+  // If specified, only `SendCoins` and `BlockReward` transactions will be returned.
+  optional Scalar to_filter = 2;
+
+  // Optionally constrains the oldest block (by hash or number) from which transactions are queried.
+  // Queries up to the genesis block if this is unspecified.
+  oneof start_block_filter {
+    Scalar start_block_hash = 3;
+    uint64 start_block_number = 4;
+  };
+
+  // Optionally constrains the youngest block (by hash or number) from which transactions are
+  // queried. Queries up to the latest block if this is unspecified.
+  oneof end_block_filter {
+    Scalar end_block_hash = 5;
+    uint64 end_block_number = 6;
+  };
+
+  enum SortOrder {
+    TRANSACTION_SORT_ORDER_DESCENDING = 0;
+    TRANSACTION_SORT_ORDER_ASCENDING = 1;
+  }
+
+  // Specifies the sort order of the results (transactions are sorted chronologically).
+  //
+  // Defaults to the descending order, meaning newest transactions are returned first.
+  optional SortOrder sort_order = 7 [default = TRANSACTION_SORT_ORDER_DESCENDING];
+
+  // REQUIRED. Specifies the maximum number of transactions to query.
+  optional uint32 max_count = 8;
+}
+
+// Returns the queried transactions.
+message QueryTransactionsResponse {
+  repeated BoundTransaction transaction = 1;
+}
+
 // Broadcasts a signed transaction.
 //
 // `BlockReward` transactions are not allowed here.
@@ -515,6 +558,9 @@ service NodeServiceV1 {
 
   // Looks up a transaction by hash.
   rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+
+  // Queries a set of transactions based on certain criteria.
+  rpc QueryTransactions(QueryTransactionsRequest) returns (QueryTransactionsResponse);
 
   // Request to broadcast a new transaction.
   rpc BroadcastTransaction(BroadcastTransactionRequest) returns (BroadcastTransactionResponse);
