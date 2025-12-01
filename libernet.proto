@@ -26,8 +26,9 @@
 // Libernet accounts are managed via an elliptic curve keypair that's used by the owner to sign
 // transactions and other kinds of messages. The private key is a BLS scalar but since it must
 // remain secret we never serialize it in this protocol. The public key is a BLS point so we
-// serialize it in compressed form on a 48-byte `bytes`. More often, Libernet account are identified
-// by their address rather than their public key. The address of an account is calculate as follows:
+// serialize it in compressed form on a 48-byte `bytes`. More often, Libernet accounts are
+// identified by their address rather than their public key. The address of an account is calculated
+// as follows:
 //
 //  * convert the public BLS key into its standard compressed form,
 //  * hash the 48 bytes of the compressed key with SHA3-512,
@@ -47,7 +48,7 @@
 //     message Payload {
 //       // ...
 //     }
-//     optional .google.protobuf.Any payload = 1;
+//     optional google.protobuf.Any payload = 1;
 //     optional Signature signature = 2;
 //   }
 //
@@ -58,34 +59,35 @@
 // a `Payload` message. For example, the type_url of a `NodeIdentity` payload would be
 // `type.libernet.org/libernet.NodeIdentity.Payload`.
 //
-// The attached signature refers to the bytes of the wire encoding of the `payload` message, which
-// wraps the actual message. Using an `Any` achieves two important goals:
+// The attached signature refers to the bytes of the wire encoding of the `payload` field (which is
+// an `Any` message), which wraps the actual message. Using an `Any` achieves two important goals:
 //
 //   * it provides a type_url that acts as a domain separator, preventing misinterpretation attacks;
-//   * and it clarifies that the signature refers to the bytes of the payload as encoded inside the
-//     `Any` (the `Any` stores the encoded message as a raw byte array).
+//   * and it clarifies that the signature refers to the bytes of the payload as encoded inside that
+//     particular `Any` instance (the `Any` stores the encoded message as a raw byte array).
 //
 // The latter is important because protobuf encoding is not canonical: field ordering is not
-// deterministic, it might have duplicated fields/tags, etc. But any actor that wishes to verify the
+// deterministic, it might have duplicated fields/tags, etc. But anyone wishing to verify the
 // signature needs to know exactly the byte array to verify.
 //
-// Note that the need for a wrapping `Any` reintroduces the encoding problem: `Any` has two fields
-// (the type_url and the byte array) and it's unspecified which one is encoded first or whether a
-// field is repeated more than once (the decoding is still unambiguous thanks to protobuf's Last One
-// Wins rule). To address that we require that the whole `Any` is encoded canonically as follows:
+// Note that the need for a wrapping `Any` reintroduces the encoding problem one level above: `Any`
+// has two fields (the type_url and the byte array) and it's unspecified which one is encoded first
+// or whether a field is repeated more than once (the decoding is still unambiguous thanks to
+// protobuf's Last One Wins rule). To address that we require that the whole `Any` is encoded
+// canonically as follows:
 //
 //   * both fields must be present (as if they were required),
 //   * field `type_url` (tagged 1) must be the first,
 //   * field `value` (tagged 2) must be the second,
-//   * there must not be repeated fields.
+//   * there must be no repeated fields.
 //
 // Implementors don't need to modify their gRPC & protobuf frameworks to enforce this, they just
-// need to know that, when signing or verifying, the signed/verified message must be encoded this
+// need to know that when signing or verifying, the signed/verified message must be encoded this
 // way. Implementing canonical encoding for a known, two-field protobuf is quite easy and much
 // better than implementing it generically for any protobuf.
 //
-// Note that since canonical encoding is only implemented for the wrapping `Any`, the wrapped
-// message cannot be re-encoded without changing the signature.
+// Since canonical encoding is implemented only for the wrapping `Any`, the wrapped message cannot
+// be re-encoded without changing the signature.
 
 syntax = "proto2";
 
@@ -148,7 +150,7 @@ message BlockDescriptor {
   optional Scalar previous_block_hash = 4;
   optional google.protobuf.Timestamp timestamp = 5;
   optional Scalar network_topology_root_hash = 6;
-  optional Scalar last_transaction_hash = 7;
+  optional Scalar transactions_root_hash = 7;
   optional Scalar accounts_root_hash = 8;
   optional Scalar program_storage_root_hash = 9;
 }
@@ -174,14 +176,6 @@ message AccountInfo {
 }
 
 // A signed transaction.
-//
-// NOTE 1: the sender is the signer of the transaction, i.e. `signature.signer`.
-//
-// NOTE 2: this message contains no transaction hash and a transaction hash cannot be calculated
-// from it, because in order to be hashed a transaction first needs to be bound to a specific
-// blockchain state. This message only contains a set of intended changes signed by the author,
-// without specifying what state they apply to. See the `BoundTransaction` message below for a
-// hashable version.
 message Transaction {
   // Payload content for block reward transactions.
   //
@@ -225,16 +219,6 @@ message Transaction {
   // REQUIRED. All transactions are always signed by the sender and are always communicated along
   // with their signature.
   optional Signature signature = 2;
-}
-
-// A signed transaction bound to a specific state (see `parent_transaction_hash` for details).
-message BoundTransaction {
-  // The hash of the parent transaction, representing the blockchain state this transaction was
-  // applied to.
-  optional Scalar parent_transaction_hash = 1;
-
-  // Signed transaction data.
-  optional Transaction transaction = 2;
 }
 
 // A Merkle proof for a piece of storage.
@@ -345,7 +329,10 @@ message GetBlockResponse {
   // empty.
   //
   // The list is already sorted chronologically: the first hash is that of the first transaction in
-  // the block. Note that the last hash must match `block_descriptor.last_transaction_hash`.
+  // the block.
+  //
+  // These hashes can be arranged as the leaves of a binary Sparse Merkle Tree with height 32, and
+  // the root hash of such tree must match `block_descriptor.transactions_root_hash`.
   repeated Scalar transaction_hash = 2;
 }
 
@@ -395,7 +382,8 @@ message GetAccountRequest {
 
 // Returns the Merkle-proven information of an account at the specified block.
 message GetAccountResponse {
-  // The value inside the proof must be an `AccountInfo` message. The key is the account address.
+  // The value inside the proof must be an `AccountInfo` message with type URL
+  // `type.libernet.org/libernet.AccountInfo`. The key is the account address.
   optional MerkleProof account_proof = 1;
 }
 
@@ -414,8 +402,8 @@ message AccountSubscriptionRequest {
 message AccountSubscriptionResponse {
   // One or more Merkle proofs describing the state of the account at several subsequent blocks.
   //
-  // The value inside each proof must be an `AccountInfo` message. The key must be the account
-  // address.
+  // The value inside each proof must be an `AccountInfo` message with type URL
+  // `type.libernet.org/libernet.AccountInfo`. The key must be the account address.
   //
   // Elements are sorted in ascending chronological order (the first element is related to the
   // oldest block, the last to the youngest).
@@ -429,14 +417,17 @@ message AccountSubscriptionResponse {
 }
 
 // Looks up a transaction by hash.
-message GetTransactionsRequest {
-  // The hashes of the transactions to look up.
-  repeated Scalar transaction_hash = 1;
+message GetTransactionRequest {
+  // The hash of the transaction to look up.
+  optional Scalar transaction_hash = 1;
 }
 
 // Returns the queried transactions.
-message GetTransactionsResponse {
-  repeated BoundTransaction transaction = 1;
+message GetTransactionResponse {
+  // REQUIRED. The value inside the proof must be a `Transaction` message with type URL
+  // `type.libernet.org/libernet.Transaction`. The key is the transaction number within the block,
+  // e.g. 0 for the first transaction of the block, 1 for the second, 2 for the third, and so on.
+  optional MerkleProof transaction_proof = 1;
 }
 
 // Queries a set of transactions based on certain criteria.
@@ -479,7 +470,7 @@ message QueryTransactionsRequest {
 
 // Returns the queried transactions.
 message QueryTransactionsResponse {
-  repeated BoundTransaction transaction = 1;
+  repeated MerkleProof transaction_proof = 1;
 }
 
 // Broadcasts a signed transaction.
@@ -556,8 +547,8 @@ service NodeServiceV1 {
   // `AccountSubscriptionResponse` for details about fork handling.
   rpc SubscribeToAccount(AccountSubscriptionRequest) returns (stream AccountSubscriptionResponse);
 
-  // Looks up one or more transactions by hash.
-  rpc GetTransactions(GetTransactionsRequest) returns (GetTransactionsResponse);
+  // Looks up a transaction by hash.
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
 
   // Queries a set of transactions based on certain criteria.
   rpc QueryTransactions(QueryTransactionsRequest) returns (QueryTransactionsResponse);
