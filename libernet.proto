@@ -228,11 +228,6 @@ message MerkleProof {
   // REQUIRED. The descriptor of the block whose storage is being queried.
   optional BlockDescriptor block_descriptor = 1;
 
-  // A node of the lookup path.
-  message Node {
-    repeated Scalar child_hashes = 1;
-  }
-
   // The full key of the queried storage location.
   optional Scalar key = 2;
 
@@ -240,9 +235,57 @@ message MerkleProof {
   // when querying account statuses via the `GetAccount` RPC the value is an `AccountInfo` message.
   optional google.protobuf.Any value = 3;
 
+  // A node of the lookup path.
+  message Node {
+    repeated Scalar child_hashes = 1;
+  }
+
   // The lookup path up to the root of the Merkle tree. The first node is the looked up leaf, while
   // the last one is the root.
   repeated Node path = 4;
+}
+
+// A Merkle multi-proof containing part of a Merkle tree.
+//
+// This format is more efficient than just serializing an array of `MerkleProof`s because the proven
+// values can share common path prefixes in a partial tree. On the flipside, this format is harder
+// to parse and requires the receiver to check that the serialized graph is a valid tree with the
+// expected arity, depth, and no cycles. It also requires the keys of the proven values to be
+// reconstructed from their respective paths, as they are not provided explicitly here (unlike
+// `MerkleProof`).
+//
+// TODO: explain how to verify it and how to extract the requested values.
+message MerkleMultiProof {
+  // REQUIRED. The descriptor of the block whose storage is being queried.
+  optional BlockDescriptor block_descriptor = 1;
+
+  // A node of the tree.
+  message Node {
+    // Encodes a child of a node. Since we are encoding a partial tree, many children will be
+    // specified just by their hash. For the nodes that are actually present we either specify
+    // `node_index` (the index of an internal node relative to the `MerkleMultiProof.node` array) or
+    // `leaf_index` (the index of a leaf node relative to the `MerkleMultiProof.value` array).
+    message Child {
+      oneof child {
+        Scalar hash = 1;
+        uint32 node_index = 2;
+        uint32 leaf_index = 3;
+      }
+    }
+
+    // REQUIRED. The hash of this node.
+    optional Scalar hash = 1;
+
+    // The children of this node. The number of elements MUST ALWAYS match the arity of the tree,
+    // e.g. 2 elements for binary Merkle trees.
+    repeated Child child = 2;
+  }
+
+  // The internal nodes of the tree.
+  repeated Node node = 2;
+
+  // The leaves of the tree, representing the values that have been proven.
+  repeated google.protobuf.Any value = 3;
 }
 
 // Contains the geographical location of a node.
@@ -468,9 +511,34 @@ message QueryTransactionsRequest {
   optional uint32 max_count = 8;
 }
 
-// Returns the queried transactions.
+// Returns the queried transactions along with their inclusion proofs.
+//
+// The returned data can be specified in either of two formats: individual Merkle proofs (one for
+// every transaction) or Merkle multi-proofs (one partial tree for every touched block). See the
+// docs for `MerkleMultiProof` for more details about the tradeoffs.
 message QueryTransactionsResponse {
-  repeated MerkleProof transaction_proof = 1;
+  // Provides inclusion proofs for the returned transactions, one for every transaction. The proofs
+  // follow the order specified in `QueryTransactionRequest.sort_order`.
+  message IndividualProofs {
+    repeated MerkleProof individual_proof = 1;
+  }
+
+  // Provides inclusion multi-proofs for the returned transactions, one for every touched block. The
+  // proofs follow the order specified in `QueryTransactionRequest.sort_order`, but since they're
+  // per-block the order of the individual transactions inside each proof must be reconstructed
+  // based on the keys. The keys of the transaction Merkle tree of each block are zero-based
+  // transaction numbers, i.e. the first transaction has key 0, the second one has key 1, and so on.
+  // To reconstruct the desired order after extracting a map of <tx_number,tx_data> pairs from each
+  // partial tree, the receiver can simply order the entries by transaction number in ascending or
+  // descending order.
+  message MultiProofs {
+    repeated MerkleMultiProof multi_proofs = 1;
+  }
+
+  oneof transaction_proofs {
+    IndividualProofs individual_proofs = 1;
+    MultiProofs multi_proofs = 2;
+  }
 }
 
 // Broadcasts a signed transaction.
