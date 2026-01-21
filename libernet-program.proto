@@ -1,0 +1,278 @@
+//
+// WebAssembly v1 support
+//
+// Limitations:
+// - Reference types and recursive types are not supported
+// - WebAssembly Component Model is not supported
+//
+// Supported sections:
+//
+// TypeSection
+//   - Only FuncType is supported
+//
+// ImportSection
+//   - Only single imports are supported
+//   - Only function imports are supported
+//
+// FunctionSection
+//
+// TableSection
+//   - Table initialization is not supported
+//   - Only funcref tables are supported
+//
+// MemorySection
+//
+// ExportSection
+//
+// ElementSection
+//
+// CodeSection
+//   - Function locals are stored in the protocol
+//   - Function bodies are preserved as raw bytes
+//
+// DataSection
+//
+// Unsupported sections:
+//
+// TagSection                     (exceptions)
+// StartSection
+// InstanceSection
+// CoreTypeSection
+// ComponentInstanceSection
+// ComponentAliasSection
+// ComponentTypeSection
+// ComponentCanonicalSection
+// ComponentStartSection
+// ComponentImportSection
+// ComponentExportSection
+// CustomSection
+//
+// Known limitations / areas for improvement:
+//
+// - CodeSection is represented as individual entries rather than a single
+//   aggregated section, which requires strict ordering guarantees during
+//   encoding and decoding.
+//
+// - Expression.bytecode is used for both constant expressions and function
+//   operator streams; the exact binary contract (presence of the final `end`
+//   opcode) must be carefully preserved to avoid malformed output.
+//
+// - ElementKind and DataKind allow structurally invalid combinations
+//   (e.g. missing offsets for active segments) and would benefit from
+//   stricter modeling.
+//
+// - Advanced WebAssembly v1 features such as shared memories, memory64,
+//   table64, and custom page sizes are not fully validated and should be
+//   treated as unsupported unless explicitly handled.
+//
+// - The protocol currently allows multiple core sections of the same kind
+//   to appear; additional validation is required to enforce canonical
+//   WebAssembly section ordering and uniqueness.
+//
+
+syntax = "proto2";
+
+package program;
+
+enum Encoding {
+  ENCODING_MODULE = 1;
+}
+
+enum AbstractRefType {
+  RefFunc = 1;
+}
+
+enum ExternalKind {
+  ExtFunc = 1;
+  ExtTable = 2;
+  ExtMemory = 3;
+  ExtGlobal = 4;
+  ExtTag = 5;
+  ExtFuncExact = 6;
+}
+
+enum ElementKindType {
+  ElPassive = 1;
+  ElActive = 2;
+  ElDeclared = 3;
+}
+
+message ElementKind {
+  required ElementKindType ty = 1;
+  optional uint32 table_index = 2;
+  optional Expression expression = 3;
+}
+
+enum DataKindType {
+  Passive = 1;
+  Active = 2;
+}
+
+message DataKind {
+  required DataKindType ty = 1;
+  optional uint32 memory_index = 2;
+  optional Expression expression = 3;
+}
+
+message Expression {
+  required bytes bytecode = 1;
+}
+
+message RefType {
+  required bool shared = 1;
+  required bool nullable = 2;
+  required AbstractRefType ty = 3;
+}
+
+message Version {
+  required uint32 num = 1;
+  required Encoding encoding = 2;
+}
+
+enum ValueType {
+  I32 = 1;
+  I64 = 2;
+  F32 = 3;
+  F64 = 4;
+  V128 = 5;
+}
+
+message FuncType {
+  repeated ValueType params = 1;
+  repeated ValueType results = 2;
+}
+
+message SubType {
+  oneof kind {
+    FuncType func = 1;
+  }
+}
+
+message TypeSection {
+  repeated SubType types = 1;
+}
+
+message TypeRefFunc {
+  required string module = 1;
+  required string name = 2;
+  required uint32 ftype = 3;
+}
+
+message ImportSection {
+  repeated TypeRefFunc imports = 1;
+}
+
+message FunctionSection {
+  repeated uint32 type_idxs = 1;
+}
+
+message TableSection {
+  repeated TableType types = 1;
+}
+
+message TableType {
+  required RefType ref_type = 1;
+  required bool table64 = 2;
+  required uint64 initial = 3;
+  optional uint64 maximum = 4;
+  required bool shared = 5;
+}
+
+message MemorySection {
+  repeated MemoryType memory_types = 1;
+}
+
+message MemoryType {
+  required bool memory64 = 1;
+  required bool shared = 2;
+  required uint64 initial = 3;
+  optional uint64 maximum = 4;
+  optional uint32 page_size_log2 = 5;
+}
+
+message GlobalType {
+  required ValueType content_type = 1;
+  required bool mutable = 2;
+  required bool shared = 3;
+}
+
+message Global {
+  required GlobalType ty = 1;
+  required Expression init_expr = 2;
+}
+
+message GlobalSection {
+  repeated Global globals = 1;
+}
+
+message Export {
+  required string name = 1;
+  required ExternalKind kind = 2;
+  required uint32 index = 3;
+}
+
+message ExportSection {
+  repeated Export exports = 1;
+}
+
+message ElementSection {
+  repeated Element elements = 1; 
+}
+
+message ElementFunctions {
+  repeated uint32 functions = 1;
+}
+
+message ElementExpressions {
+  required RefType ref_type = 1;
+  repeated Expression expressions = 2;
+}
+
+message Element {
+  required ElementKind kind = 1;
+  oneof items {
+    ElementFunctions functions = 2;
+    ElementExpressions expressions = 3;
+  }
+}
+
+message CodeSectionEntry {
+  repeated Locals locals = 1;
+  required Expression body = 2; 
+}
+
+message Locals {
+  required uint32 count = 1;
+  required ValueType value_type = 2;
+}
+
+
+message Data {
+  required DataKind kind = 1;
+  required bytes data = 2;
+}
+
+message DataSection {
+  repeated Data datas = 1;
+}
+
+message Section {
+  oneof section {
+    TypeSection type_section = 1;
+    ImportSection import_section = 2;
+    FunctionSection function_section = 3;
+    TableSection table_section = 4;
+    MemorySection memory_section = 5;
+    GlobalSection global_section = 6;
+    ExportSection export_section = 7;
+    ElementSection element_section = 8;
+    CodeSectionEntry code_section_entry = 9;
+    DataSection data_section = 10;
+  }
+}
+
+message ProgramModule {
+  required uint32 protocol_version = 1;
+  required Version version = 2;
+  repeated Section sections = 3;
+}
