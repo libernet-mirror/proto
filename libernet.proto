@@ -15,20 +15,20 @@
 //
 // ## Cryptographic Primitives
 //
-// Libernet's protocol uses the BLS12-381 elliptic curve and for the most part runs on BLS12-381's
-// finite fields.
+// The protocol uses the BLS12-381 elliptic curve and for the most part runs on BLS12-381's finite
+// fields.
 //
 // The protocol uses Poseidon-128 for hashing everywhere a scalar output is needed, but in some
-// cases it uses SHA3.
+// cases it uses SHA3. Our Poseidon-128 instance uses the x^5 S-box and T=3 (rate=2, capacity=1).
 //
 // ## Accounts
 //
 // Libernet accounts are managed via an elliptic curve keypair that's used by the owner to sign
 // transactions and other kinds of messages. The private key is a BLS scalar but since it must
 // remain secret we never serialize it in this protocol. The public key is a BLS point so we
-// serialize it in compressed form on a 48-byte `bytes`. More often, Libernet accounts are
-// identified by their address rather than their public key. The address of an account is calculated
-// as follows:
+// serialize it in compressed form using the `PointG1` message type. More often, Libernet accounts
+// are identified by their address rather than their public key. The address of an account is a
+// scalar calculated as follows:
 //
 //  * convert the public BLS key into its standard compressed form,
 //  * hash the 48 bytes of the compressed key with SHA3-512,
@@ -59,8 +59,8 @@
 // a `Payload` message. For example, the type_url of a `NodeIdentity` payload would be
 // `type.libernet.org/libernet.NodeIdentity.Payload`.
 //
-// The attached signature refers to the bytes of the wire encoding of the `payload` field (which is
-// an `Any` message), which wraps the actual message. Using an `Any` achieves two important goals:
+// The attached signature refers to the bytes of the wire encoding of the `payload` field, which is
+// an `Any` message wrapping the actual message. Using an `Any` achieves two important goals:
 //
 //   * it provides a type_url that acts as a domain separator, preventing misinterpretation attacks;
 //   * and it clarifies that the signature refers to the bytes of the payload as encoded inside that
@@ -96,6 +96,35 @@ import "google/protobuf/timestamp.proto";
 
 package libernet;
 
+// Used by nodes and clients to communicate what version of this protocol they implement.
+//
+// The compatibility rules are:
+//
+//  * different major versions are incompatible,
+//  * different minor versions and build numbers within compatible major versions are compatible,
+//  * all nodes and clients MUST implement backward compatibility for at least the previous major
+//    version.
+//
+// So the major version number must be bumped every time an incompatible change is implemented.
+//
+// Examples:
+//
+//  * 1.2.3 and 1.2.4 are compatible,
+//  * 1.2.3 and 1.3.4 are compatible,
+//  * 1.2.3 and 2.2.3 are incompatible but 1.2.3 is still supported,
+//  * 1.2.3 and 3.2.3 are incompatible and 1.2.3 may no longer be supported.
+//
+// Major version 0 represents preliminary versions not ready for production use, and is granted the
+// following exceptions to the above rules:
+//
+//  * different minor versions are incompatible if the major version is 0,
+//  * there's no requirement to support the previous minor version within major version 0.
+//
+// Example:
+//
+//  * 0.1.2 and 0.2.3 are incompatible and 0.1.2 may no longer be supported.
+//
+// All versions within major version 0 must be considered unstable.
 message ProtocolVersion {
   optional uint32 major = 1;
   optional uint32 minor = 2;
@@ -104,19 +133,19 @@ message ProtocolVersion {
 
 // A BLS12-381 scalar.
 message Scalar {
-  // The bytes of the scalar in little endian order. This field MUST be 32 bytes long.
+  // REQUIRED. The bytes of the scalar in little endian order. This field MUST be 32 bytes long.
   optional bytes value = 4;
 }
 
 // A BLS12-381 G1 point.
 message PointG1 {
-  // The compressed bytes of the point. This field MUST be 48 bytes long.
+  // REQUIRED. The compressed bytes of the point. This field MUST be 48 bytes long.
   optional bytes compressed_bytes = 1;
 }
 
 // A BLS12-381 G2 point.
 message PointG2 {
-  // The compressed bytes of the point. This field MUST be 96 bytes long.
+  // REQUIRED. The compressed bytes of the point. This field MUST be 96 bytes long.
   optional bytes compressed_bytes = 2;
 }
 
@@ -384,7 +413,7 @@ message BlockSubscriptionRequest {}
 
 // Streamed in response to a `BlockSubscriptionRequest`.
 message BlockSubscriptionResponse {
-  // One or more descriptor for new blocks accepted into the chain known by this node.
+  // One or more descriptors for new blocks accepted into the chain known by this node.
   //
   // Elements are sorted in ascending chronological order (the first element is the oldest block,
   // the last is the youngest).
@@ -449,7 +478,7 @@ message AccountSubscriptionResponse {
   // `type.libernet.org/libernet.AccountInfo`. The key must be the account address.
   //
   // Elements are sorted in ascending chronological order (the first element is related to the
-  // oldest block, the last to the youngest).
+  // oldest block, the last one to the youngest).
   //
   // Normally a node sends exactly one proof per slot back to the client, but if a better fork shows
   // up then the node will discard all blocks up to the youngest common ancestor and will send an
@@ -563,7 +592,7 @@ message BroadcastBlockRequest {
     // REQUIRED. The slot number. This prevents the proof from being replayed across blocks.
     optional uint64 slot_number = 2;
 
-    // REQUIRED. The previous block hash, which we use a per-slot randomness when seeding the VRF.
+    // REQUIRED. The previous block hash, which we use as per-slot randomness when seeding the VRF.
     optional Scalar previous_block_hash = 3;
 
     // REQUIRED. A BLS signature used as a VRF. The signed message includes the other fields of this
