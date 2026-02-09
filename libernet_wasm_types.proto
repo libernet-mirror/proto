@@ -1,0 +1,23 @@
+syntax = "proto2";
+
+package libernet.wasm;
+
+enum PlainType {
+  VALUE_TYPE_I32 = 1;
+  VALUE_TYPE_I64 = 2;
+  VALUE_TYPE_F32 = 3;
+  VALUE_TYPE_F64 = 4;
+  VALUE_TYPE_V128 = 5;
+  VALUE_TYPE_REF = 6;
+}
+
+enum RefType {
+  REF_TYPE_REF_FUNC = 1;
+  REF_TYPE_EXTERN_REF = 2;
+}
+
+message ValueType {
+  // REQUIRED
+  optional PlainType value_type = 1;
+  optional RefType reference_type = 2;
+}

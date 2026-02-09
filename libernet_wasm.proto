@@ -1,0 +1,264 @@
+//
+// Protocol for serializing WebAssembly into the Libernet format
+//
+// Libernet supports WebAssembly MVP and the following extensions:
+// - sign_extension
+// - saturating_float_to_int
+// - bulk_memory
+// - exceptions
+// - legacy_exceptions
+//
+// Limitations:
+//
+// TypeSection
+//   - Only `externref` and `funcref` are supported (covers 100% of the MVP
+//     and listed extensions)
+//
+// ImportSection
+//   - Only single imports are supported
+//   - Only function imports are supported
+//
+//     @caiiiycuk: This should be fine for the Libernet use case; there is no
+//     need to import memory or tables from the host.
+//
+// TableSection
+//   - Table initialization is not supported
+//
+//     @caiiiycuk: This may potentially break the `bulk_memory` extension,
+//     but it has never been observed in real-world modules and can be added
+//     if needed.
+
+syntax = "proto2";
+
+package libernet.wasm;
+
+import "libernet_wasm_operators.proto";
+import "libernet_wasm_types.proto";
+
+enum Encoding {
+  ENCODING_MODULE = 1;
+}
+
+enum ExternalKind {
+  EXTERNAL_KIND_EXT_FUNC = 1;
+  EXTERNAL_KIND_EXT_TABLE = 2;
+  EXTERNAL_KIND_EXT_MEMORY = 3;
+  EXTERNAL_KIND_EXT_GLOBAL = 4;
+  EXTERNAL_KIND_EXT_TAG = 5;
+  EXTERNAL_KIND_EXT_FUNC_EXACT = 6;
+}
+
+enum ElementKindType {
+  ELEMENT_KIND_TYPE_EL_PASSIVE = 1;
+  ELEMENT_KIND_TYPE_EL_ACTIVE = 2;
+  ELEMENT_KIND_TYPE_EL_DECLARED = 3;
+}
+
+message ElementKind {
+  // REQUIRED
+  optional ElementKindType type = 1;
+  optional uint32 table_index = 2;
+  optional Expression expression = 3;
+}
+
+enum DataKindType {
+  DATA_KIND_TYPE_PASSIVE = 1;
+  DATA_KIND_TYPE_ACTIVE = 2;
+}
+
+message DataKind {
+  // REQUIRED
+  optional DataKindType type = 1;
+  optional uint32 memory_index = 2;
+  optional Expression expression = 3;
+}
+
+message Expression {
+  repeated Operator operators = 1;
+}
+
+message Version {
+  // REQUIRED
+  optional uint32 num = 1;
+  // REQUIRED
+  optional Encoding encoding = 2;
+}
+
+message FuncType {
+  repeated ValueType params = 1;
+  repeated ValueType results = 2;
+}
+
+message SubType {
+  oneof kind {
+    FuncType func = 1;
+  }
+}
+
+message TypeSection {
+  repeated SubType types = 1;
+}
+
+message TypeRefFunc {
+  // REQUIRED
+  optional string module = 1;
+  // REQUIRED
+  optional string name = 2;
+  // REQUIRED
+  optional uint32 function_type = 3;
+}
+
+message ImportSection {
+  repeated TypeRefFunc imports = 1;
+}
+
+message FunctionSection {
+  repeated uint32 type_idxs = 1;
+}
+
+message TableSection {
+  repeated TableType types = 1;
+}
+
+message TableType {
+  // REQUIRED
+  optional RefType reference_type = 1;
+  // REQUIRED
+  optional bool table64 = 2;
+  // REQUIRED
+  optional uint64 initial = 3;
+  optional uint64 maximum = 4;
+  // REQUIRED
+  optional bool shared = 5;
+}
+
+message MemorySection {
+  repeated MemoryType memory_types = 1;
+}
+
+message MemoryType {
+  // REQUIRED
+  optional bool memory64 = 1;
+  // REQUIRED
+  optional bool shared = 2;
+  // REQUIRED
+  optional uint64 initial = 3;
+  optional uint64 maximum = 4;
+  optional uint32 page_size_log2 = 5;
+}
+
+message GlobalType {
+  // REQUIRED
+  optional ValueType content_type = 1;
+  // REQUIRED
+  optional bool mutable = 2;
+  // REQUIRED
+  optional bool shared = 3;
+}
+
+message Global {
+  // REQUIRED
+  optional GlobalType type = 1;
+  // REQUIRED
+  optional Expression init_expr = 2;
+}
+
+message GlobalSection {
+  repeated Global globals = 1;
+}
+
+message Export {
+  // REQUIRED
+  optional string name = 1;
+  // REQUIRED
+  optional ExternalKind kind = 2;
+  // REQUIRED
+  optional uint32 index = 3;
+}
+
+message ExportSection {
+  repeated Export exports = 1;
+}
+
+message ElementSection {
+  repeated Element elements = 1;
+}
+
+message ElementFunctions {
+  repeated uint32 functions = 1;
+}
+
+message ElementExpressions {
+  // REQUIRED
+  optional RefType reference_type = 1;
+  repeated Expression expressions = 2;
+}
+
+message Element {
+  // REQUIRED
+  optional ElementKind kind = 1;
+  oneof items {
+    ElementFunctions functions = 2;
+    ElementExpressions expressions = 3;
+  }
+}
+
+message CodeSectionEntry {
+  repeated Locals locals = 1;
+  repeated Operator body = 2;
+}
+
+message Locals {
+  // REQUIRED
+  optional uint32 count = 1;
+  // REQUIRED
+  optional ValueType value_type = 2;
+}
+
+message Data {
+  // REQUIRED
+  optional DataKind kind = 1;
+  // REQUIRED
+  optional bytes data = 2;
+}
+
+message DataSection {
+  repeated Data datas = 1;
+}
+
+enum TagKind {
+  TAG_KIND_EXCEPTION = 1;
+}
+
+message TagType {
+  optional TagKind kind = 1;
+  optional uint32 function_type_idx = 2;
+}
+
+message TagSection {
+  repeated TagType tags = 1;
+}
+
+message Section {
+  oneof section {
+    TypeSection type_section = 1;
+    ImportSection import_section = 2;
+    FunctionSection function_section = 3;
+    TableSection table_section = 4;
+    MemorySection memory_section = 5;
+    GlobalSection global_section = 6;
+    ExportSection export_section = 7;
+    ElementSection element_section = 8;
+    CodeSectionEntry code_section_entry = 9;
+    DataSection data_section = 10;
+    TagSection tag_section = 11;
+  }
+}
+
+message ProgramModule {
+  // REQUIRED
+  optional uint32 protocol_version = 1;
+  // REQUIRED
+  optional Version version = 2;
+  repeated Section sections = 3;
+}
