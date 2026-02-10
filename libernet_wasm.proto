@@ -1,6 +1,3 @@
-//
-// Protocol for serializing WebAssembly into the Libernet format
-//
 // Protobuf-based WebAssembly serialization format.
 //
 // We serialize WebAssembly modules in custom protobuf messages to be able to handle them within the
@@ -244,20 +241,8 @@ message TagSection {
   repeated TagType tags = 1;
 }
 
-message Section {
-  oneof section {
-    TypeSection type_section = 1;
-    ImportSection import_section = 2;
-    FunctionSection function_section = 3;
-    TableSection table_section = 4;
-    MemorySection memory_section = 5;
-    GlobalSection global_section = 6;
-    ExportSection export_section = 7;
-    ElementSection element_section = 8;
-    CodeSectionEntry code_section_entry = 9;
-    DataSection data_section = 10;
-    TagSection tag_section = 11;
-  }
+message CodeSection {
+  repeated CodeSectionEntry code_section_entry = 1;
 }
 
 message ProgramModule {
@@ -265,5 +250,15 @@ message ProgramModule {
   optional uint32 protocol_version = 1;
   // REQUIRED
   optional Version version = 2;
-  repeated Section sections = 3;
+  optional TypeSection type_section = 3;
+  optional ImportSection import_section = 4;
+  optional FunctionSection function_section = 5;
+  optional TableSection table_section = 6;
+  optional MemorySection memory_section = 7;
+  optional TagSection tag_section = 8;
+  optional GlobalSection global_section = 9;
+  optional ExportSection export_section = 10;
+  optional ElementSection element_section = 11;
+  optional CodeSection code_section = 12;
+  optional DataSection data_section = 13;
 }
