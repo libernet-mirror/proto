@@ -1,7 +1,12 @@
 //
 // Protocol for serializing WebAssembly into the Libernet format
 //
-// Libernet supports WebAssembly MVP and the following extensions:
+// Protobuf-based WebAssembly serialization format.
+//
+// We serialize WebAssembly modules in custom protobuf messages to be able to handle them within the
+// Libernet protocol.
+//
+// Our serialization format supports the following extensions:
 // - sign_extension
 // - saturating_float_to_int
 // - bulk_memory
