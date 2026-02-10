@@ -84,7 +84,7 @@ message Expression {
 
 message Version {
   // REQUIRED
-  optional uint32 num = 1;
+  optional uint32 number = 1;
   // REQUIRED
   optional Encoding encoding = 2;
 }
