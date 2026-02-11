@@ -93,8 +93,10 @@ syntax = "proto2";
 
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
+import "libernet_wasm.proto";
 
 package libernet;
+
 
 // Used by nodes and clients to communicate what version of this protocol they implement.
 //
@@ -228,7 +230,7 @@ message Transaction {
 
   // Payload content for smartcontract deployment transactions.
   message CreateProgram {
-    optional bytes bytecode = 1;
+    optional wasm.ProgramModule program_module = 1;
   }
 
   message Payload {

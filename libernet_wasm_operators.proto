@@ -1,0 +1,361 @@
+syntax = "proto2";
+
+package libernet.wasm;
+
+import "libernet_wasm_types.proto";
+
+// Supported opcodes:
+// * @mvp
+// * @sign_extension
+// * @saturating_float_to_int
+// * @bulk_memory
+// * exceptions
+// * legacy_exceptions
+
+enum OpCode {
+  // @mvp
+  OP_CODE_UNREACHABLE = 0x00;
+  OP_CODE_NOP = 0x01;
+  OP_CODE_BLOCK = 0x02;
+  OP_CODE_LOOP = 0x03;
+  OP_CODE_IF = 0x04;
+  OP_CODE_ELSE = 0x05;
+  OP_CODE_END = 0x0B;
+  OP_CODE_BR = 0x0C;
+  OP_CODE_BR_IF = 0x0D;
+  OP_CODE_BR_TABLE = 0x0E;
+  OP_CODE_RETURN = 0x0F;
+  OP_CODE_CALL = 0x10;
+  OP_CODE_CALL_INDIRECT = 0x11;
+  OP_CODE_DROP = 0x1A;
+  OP_CODE_SELECT = 0x1B;
+  OP_CODE_LOCAL_GET = 0x20;
+  OP_CODE_LOCAL_SET = 0x21;
+  OP_CODE_LOCAL_TEE = 0x22;
+  OP_CODE_GLOBAL_GET = 0x23;
+  OP_CODE_GLOBAL_SET = 0x24;
+  OP_CODE_I32_LOAD = 0x28;
+  OP_CODE_I64_LOAD = 0x29;
+  OP_CODE_F32_LOAD = 0x2A;
+  OP_CODE_F64_LOAD = 0x2B;
+  OP_CODE_I32_LOAD_8_SIGNED = 0x2C;
+  OP_CODE_I32_LOAD_8_UNSIGNED = 0x2D;
+  OP_CODE_I32_LOAD_16_SIGNED = 0x2E;
+  OP_CODE_I32_LOAD_16_UNSIGNED = 0x2F;
+  OP_CODE_I64_LOAD_8_SIGNED = 0x30;
+  OP_CODE_I64_LOAD_8_UNSIGNED = 0x31;
+  OP_CODE_I64_LOAD_16_SIGNED = 0x32;
+  OP_CODE_I64_LOAD_16_UNSIGNED = 0x33;
+  OP_CODE_I64_LOAD_32_SIGNED = 0x34;
+  OP_CODE_I64_LOAD_32_UNSIGNED = 0x35;
+  OP_CODE_I32_STORE = 0x36;
+  OP_CODE_I64_STORE = 0x37;
+  OP_CODE_F32_STORE = 0x38;
+  OP_CODE_F64_STORE = 0x39;
+  OP_CODE_I32_STORE8 = 0x3A;
+  OP_CODE_I32_STORE16 = 0x3B;
+  OP_CODE_I64_STORE8 = 0x3C;
+  OP_CODE_I64_STORE16 = 0x3D;
+  OP_CODE_I64_STORE32 = 0x3E;
+  OP_CODE_MEMORY_SIZE = 0x3F;
+  OP_CODE_MEMORY_GROW = 0x40;
+  OP_CODE_I32_CONSTANT = 0x41;
+  OP_CODE_I64_CONSTANT = 0x42;
+  OP_CODE_F32_CONSTANT = 0x43;
+  OP_CODE_F64_CONSTANT = 0x44;
+  OP_CODE_I32_EQZ = 0x45;
+  OP_CODE_I32_EQ = 0x46;
+  OP_CODE_I32_NE = 0x47;
+  OP_CODE_I32_LT_SIGNED = 0x48;
+  OP_CODE_I32_LT_UNSIGNED = 0x49;
+  OP_CODE_I32_GT_SIGNED = 0x4A;
+  OP_CODE_I32_GT_UNSIGNED = 0x4B;
+  OP_CODE_I32_LE_SIGNED = 0x4C;
+  OP_CODE_I32_LE_UNSIGNED = 0x4D;
+  OP_CODE_I32_GE_SIGNED = 0x4E;
+  OP_CODE_I32_GE_UNSIGNED = 0x4F;
+  OP_CODE_I64_EQZ = 0x50;
+  OP_CODE_I64_EQ = 0x51;
+  OP_CODE_I64_NE = 0x52;
+  OP_CODE_I64_LT_SIGNED = 0x53;
+  OP_CODE_I64_LT_UNSIGNED = 0x54;
+  OP_CODE_I64_GT_SIGNED = 0x55;
+  OP_CODE_I64_GT_UNSIGNED = 0x56;
+  OP_CODE_I64_LE_SIGNED = 0x57;
+  OP_CODE_I64_LE_UNSIGNED = 0x58;
+  OP_CODE_I64_GE_SIGNED = 0x59;
+  OP_CODE_I64_GE_UNSIGNED = 0x5A;
+  OP_CODE_F32_EQ = 0x5B;
+  OP_CODE_F32_NE = 0x5C;
+  OP_CODE_F32_LT = 0x5D;
+  OP_CODE_F32_GT = 0x5E;
+  OP_CODE_F32_LE = 0x5F;
+  OP_CODE_F32_GE = 0x60;
+  OP_CODE_F64_EQ = 0x61;
+  OP_CODE_F64_NE = 0x62;
+  OP_CODE_F64_LT = 0x63;
+  OP_CODE_F64_GT = 0x64;
+  OP_CODE_F64_LE = 0x65;
+  OP_CODE_F64_GE = 0x66;
+  OP_CODE_I32_CLZ = 0x67;
+  OP_CODE_I32_CTZ = 0x68;
+  OP_CODE_I32_POPCNT = 0x69;
+  OP_CODE_I32_ADD = 0x6A;
+  OP_CODE_I32_SUB = 0x6B;
+  OP_CODE_I32_MUL = 0x6C;
+  OP_CODE_I32_DIV_SIGNED = 0x6D;
+  OP_CODE_I32_DIV_UNSIGNED = 0x6E;
+  OP_CODE_I32_REM_SIGNED = 0x6F;
+  OP_CODE_I32_REM_UNSIGNED = 0x70;
+  OP_CODE_I32_AND = 0x71;
+  OP_CODE_I32_OR = 0x72;
+  OP_CODE_I32_XOR = 0x73;
+  OP_CODE_I32_SHL = 0x74;
+  OP_CODE_I32_SHR_SIGNED = 0x75;
+  OP_CODE_I32_SHR_UNSIGNED = 0x76;
+  OP_CODE_I32_ROTL = 0x77;
+  OP_CODE_I32_ROTR = 0x78;
+  OP_CODE_I64_CLZ = 0x79;
+  OP_CODE_I64_CTZ = 0x7A;
+  OP_CODE_I64_POPCNT = 0x7B;
+  OP_CODE_I64_ADD = 0x7C;
+  OP_CODE_I64_SUB = 0x7D;
+  OP_CODE_I64_MUL = 0x7E;
+  OP_CODE_I64_DIV_SIGNED = 0x7F;
+  OP_CODE_I64_DIV_UNSIGNED = 0x80;
+  OP_CODE_I64_REM_SIGNED = 0x81;
+  OP_CODE_I64_REM_UNSIGNED = 0x82;
+  OP_CODE_I64_AND = 0x83;
+  OP_CODE_I64_OR = 0x84;
+  OP_CODE_I64_XOR = 0x85;
+  OP_CODE_I64_SHL = 0x86;
+  OP_CODE_I64_SHR_SIGNED = 0x87;
+  OP_CODE_I64_SHR_UNSIGNED = 0x88;
+  OP_CODE_I64_ROTL = 0x89;
+  OP_CODE_I64_ROTR = 0x8A;
+  OP_CODE_F32_ABS = 0x8B;
+  OP_CODE_F32_NEG = 0x8C;
+  OP_CODE_F32_CEIL = 0x8D;
+  OP_CODE_F32_FLOOR = 0x8E;
+  OP_CODE_F32_TRUNC = 0x8F;
+  OP_CODE_F32_NEAREST = 0x90;
+  OP_CODE_F32_SQRT = 0x91;
+  OP_CODE_F32_ADD = 0x92;
+  OP_CODE_F32_SUB = 0x93;
+  OP_CODE_F32_MUL = 0x94;
+  OP_CODE_F32_DIV = 0x95;
+  OP_CODE_F32_MIN = 0x96;
+  OP_CODE_F32_MAX = 0x97;
+  OP_CODE_F32_COPYSIGN = 0x98;
+  OP_CODE_F64_ABS = 0x99;
+  OP_CODE_F64_NEG = 0x9A;
+  OP_CODE_F64_CEIL = 0x9B;
+  OP_CODE_F64_FLOOR = 0x9C;
+  OP_CODE_F64_TRUNC = 0x9D;
+  OP_CODE_F64_NEAREST = 0x9E;
+  OP_CODE_F64_SQRT = 0x9F;
+  OP_CODE_F64_ADD = 0xA0;
+  OP_CODE_F64_SUB = 0xA1;
+  OP_CODE_F64_MUL = 0xA2;
+  OP_CODE_F64_DIV = 0xA3;
+  OP_CODE_F64_MIN = 0xA4;
+  OP_CODE_F64_MAX = 0xA5;
+  OP_CODE_F64_COPYSIGN = 0xA6;
+  OP_CODE_I32_WRAP_I64 = 0xA7;
+  OP_CODE_I32_TRUNC_F32_SIGNED = 0xA8;
+  OP_CODE_I32_TRUNC_F32_UNSIGNED = 0xA9;
+  OP_CODE_I32_TRUNC_F64_SIGNED = 0xAA;
+  OP_CODE_I32_TRUNC_F64_UNSIGNED = 0xAB;
+  OP_CODE_I64_EXTEND_I32_SIGNED = 0xAC;
+  OP_CODE_I64_EXTEND_I32_UNSIGNED = 0xAD;
+  OP_CODE_I64_TRUNC_F32_SIGNED = 0xAE;
+  OP_CODE_I64_TRUNC_F32_UNSIGNED = 0xAF;
+  OP_CODE_I64_TRUNC_F64_SIGNED = 0xB0;
+  OP_CODE_I64_TRUNC_F64_UNSIGNED = 0xB1;
+  OP_CODE_F32_CONVERT_I32_SIGNED = 0xB2;
+  OP_CODE_F32_CONVERT_I32_UNSIGNED = 0xB3;
+  OP_CODE_F32_CONVERT_I64_SIGNED = 0xB4;
+  OP_CODE_F32_CONVERT_I64_UNSIGNED = 0xB5;
+  OP_CODE_F32_DEMOTE_F64 = 0xB6;
+  OP_CODE_F64_CONVERT_I32_SIGNED = 0xB7;
+  OP_CODE_F64_CONVERT_I32_UNSIGNED = 0xB8;
+  OP_CODE_F64_CONVERT_I64_SIGNED = 0xB9;
+  OP_CODE_F64_CONVERT_I64_UNSIGNED = 0xBA;
+  OP_CODE_F64_PROMOTE_F32 = 0xBB;
+  OP_CODE_I32_REINTERPRET_F32 = 0xBC;
+  OP_CODE_I64_REINTERPRET_F64 = 0xBD;
+  OP_CODE_F32_REINTERPRET_I32 = 0xBE;
+  OP_CODE_F64_REINTERPRET_I64 = 0xBF;
+
+  // @sign_extension
+  OP_CODE_SIGN_EXT_I32_EXTEND_8_SIGNED = 0xC0;
+  OP_CODE_SIGN_EXT_I32_EXTEND_16_SIGNED = 0xC1;
+  OP_CODE_SIGN_EXT_I64_EXTEND_8_SIGNED = 0xC2;
+  OP_CODE_SIGN_EXT_I64_EXTEND_16_SIGNED = 0xC3;
+  OP_CODE_SIGN_EXT_I64_EXTEND_32_SIGNED = 0xC4;
+
+  // @saturating_float_to_int
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I32_TRUNC_SAT_F32_SIGNED = 0xFC00;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I32_TRUNC_SAT_F32_UNSIGNED = 0xFC01;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I32_TRUNC_SAT_F64_SIGNED = 0xFC02;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I32_TRUNC_SAT_F64_UNSIGNED = 0xFC03;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I64_TRUNC_SAT_F32_SIGNED = 0xFC04;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I64_TRUNC_SAT_F32_UNSIGNED = 0xFC05;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I64_TRUNC_SAT_F64_SIGNED = 0xFC06;
+  OP_CODE_SATURATING_FLOAT_TO_INT_EXT_I64_TRUNC_SAT_F64_UNSIGNED = 0xFC07;
+
+  // @bulk_memory
+  OP_CODE_BULK_MEMORY_EXT_MEMORY_INIT = 0xFC08;
+  OP_CODE_BULK_MEMORY_EXT_DATA_DROP = 0xFC09;
+  OP_CODE_BULK_MEMORY_EXT_MEMORY_COPY = 0xFC0A;
+  OP_CODE_BULK_MEMORY_EXT_MEMORY_FILL = 0xFC0B;
+  OP_CODE_BULK_MEMORY_EXT_TABLE_INIT = 0xFC0C;
+  OP_CODE_BULK_MEMORY_EXT_ELEM_DROP = 0xFC0D;
+  OP_CODE_BULK_MEMORY_EXT_TABLE_COPY = 0xFC0E;
+
+  // @exceptions
+  OP_CODE_EXCEPTIONS_EXT_TRY_TABLE = 0x1F;
+  OP_CODE_EXCEPTIONS_EXT_THROW = 0x08;
+  OP_CODE_EXCEPTIONS_EXT_THROW_REF = 0x0A;
+
+  // @legacy_exceptions
+  OP_CODE_LEGACY_EXCEPTIONS_EXT_TRY = 0x06;
+  OP_CODE_LEGACY_EXCEPTIONS_EXT_CATCH = 0x07;
+  OP_CODE_LEGACY_EXCEPTIONS_EXT_RETHROW = 0xFC19;
+  OP_CODE_LEGACY_EXCEPTIONS_EXT_DELEGATE = 0xFC1A;
+  OP_CODE_LEGACY_EXCEPTIONS_EXT_CATCH_ALL = 0x09;
+}
+
+message BlockType {
+  oneof block_type {
+    uint32 empty = 1;
+    ValueType value_type = 2;
+    uint32 function_type = 3;
+  }
+}
+
+message BreakTargets {
+  // REQUIRED
+  optional uint32 default = 1;
+  repeated uint32 targets = 2;
+}
+
+message CallIndirectOp {
+  // REQUIRED
+  optional uint32 type_index = 1;
+  // REQUIRED
+  optional uint32 table_index = 2;
+}
+
+message MemArg {
+  // REQUIRED
+  optional uint32 align = 1;
+  // REQUIRED
+  optional uint32 max_align = 2;
+  // REQUIRED
+  optional uint64 offset = 3;
+  // REQUIRED
+  optional uint32 memory = 4;
+}
+
+message MemoryInitOp {
+  // REQUIRED
+  optional uint32 data_index = 1;
+  // REQUIRED
+  optional uint32 address = 2;
+}
+
+message MemoryCopyOp {
+  // REQUIRED
+  optional uint32 destination_address = 1;
+  // REQUIRED
+  optional uint32 source_address = 2;
+}
+
+message TableInitOp {
+  // REQUIRED
+  optional uint32 element_index = 1;
+  // REQUIRED
+  optional uint32 table = 2;
+}
+
+message TableCopyOp {
+  // REQUIRED
+  optional uint32 dst_table = 1;
+  // REQUIRED
+  optional uint32 src_table = 2;
+}
+
+message CatchOne {
+  // REQUIRED
+  optional uint32 tag = 1;
+  // REQUIRED
+  optional uint32 label = 2;
+}
+
+message CatchOneRef {
+  // REQUIRED
+  optional uint32 tag = 1;
+  // REQUIRED
+  optional uint32 label = 2;
+}
+
+message CatchAllElements {
+  // REQUIRED
+  optional uint32 label = 1;
+}
+
+message CatchAllRef {
+  // REQUIRED
+  optional uint32 label = 1;
+}
+
+message CatchElement {
+  oneof catch_element {
+    CatchOne one = 1;
+    CatchOneRef one_ref = 2;
+    CatchAllElements all = 3;
+    CatchAllRef all_ref = 4;
+  }
+}
+
+message TryTableOp {
+  // REQUIRED
+  optional BlockType type = 1;
+  repeated CatchElement catches = 2;
+}
+
+message ThrowOp {
+  // REQUIRED
+  optional uint32 tag_index = 1;
+}
+
+message Operator {
+  optional OpCode opcode = 1;
+  oneof operator {
+    BlockType block_type = 2;
+    uint32 relative_depth = 3;
+    BreakTargets targets = 4;
+    uint32 function_index = 5;
+    CallIndirectOp call_indirect = 6;
+    uint32 local_index = 7;
+    uint32 global_index = 8;
+    MemArg memarg = 9;
+    uint32 mem = 10;
+    int32 i32_value = 11;
+    int64 i64_value = 12;
+    /// An IEEE binary32 immediate floating point value, represented as a u32
+    uint32 f32_value = 13;
+    /// An IEEE binary64 immediate floating point value, represented as a u64
+    uint64 f64_value = 14;
+    MemoryInitOp memory_init = 15;
+    uint32 data_index = 16;
+    MemoryCopyOp memory_copy = 17;
+    TableInitOp table_init = 18;
+    uint32 element_index = 19;
+    TableCopyOp table_copy = 20;
+    TryTableOp try_table = 21;
+    ThrowOp throw_op = 22;
+    uint32 tag_index = 23;
+  }
+}
