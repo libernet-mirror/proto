@@ -230,7 +230,7 @@ message BlockType {
   oneof block_type {
     uint32 empty = 1;
     ValueType value_type = 2;
-    uint32 function_type = 3;
+    uint32 type_index = 3;
   }
 }
 
